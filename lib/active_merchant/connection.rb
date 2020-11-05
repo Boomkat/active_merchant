@@ -189,7 +189,7 @@ module ActiveMerchant
 
     def log(level, message, tag)
       message = "[#{tag}] #{message}" if tag
-      logger&.send(level, message)
+      logger.try(:send, level, message)
     end
   end
 end
