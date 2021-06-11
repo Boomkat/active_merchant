@@ -53,8 +53,6 @@ module ActiveMerchant #:nodoc:
 
         super
 
-        puts "INIT"
-
         if wiredump_device.present?
           logger = (Logger === wiredump_device ? wiredump_device : Logger.new(wiredump_device))
           logger.level = Logger::DEBUG
@@ -76,12 +74,10 @@ module ActiveMerchant #:nodoc:
       end
 
       def authorize(money, credit_card_or_vault_id, options = {})
-        puts "authorize"
         create_transaction(:sale, money, credit_card_or_vault_id, options)
       end
 
       def capture(money, authorization, options = {})
-        puts "CAPTURE"
         commit do
           result = @braintree_gateway.transaction.submit_for_settlement(authorization, localized_amount(money, options[:currency] || default_currency).to_s)
           response_from_result(result)
@@ -89,7 +85,6 @@ module ActiveMerchant #:nodoc:
       end
 
       def purchase(money, credit_card_or_vault_id, options = {})
-        puts "purchase"
         authorize(money, credit_card_or_vault_id, options.merge(:submit_for_settlement => true))
       end
 
@@ -119,7 +114,6 @@ module ActiveMerchant #:nodoc:
       end
 
       def verify(credit_card, options = {})
-        puts "verify"
         MultiResponse.run(:use_first_response) do |r|
           r.process { authorize(100, credit_card, options) }
           r.process(:ignore_result) { void(r.authorization, options) }
@@ -127,23 +121,19 @@ module ActiveMerchant #:nodoc:
       end
 
       def store(creditcard, options = {})
-        puts "store", creditcard, options
         if options[:customer].present?
           MultiResponse.new.tap do |r|
             customer_exists_response = nil
             r.process { customer_exists_response = check_customer_exists(options[:customer]) }
             r.process do
               if customer_exists_response.params['exists']
-                puts "A"
                 add_credit_card_to_customer(creditcard, options)
               else
-                puts "V"
                 add_customer_with_credit_card(creditcard, options)
               end
             end
           end
         else
-          puts "C"
           add_customer_with_credit_card(creditcard, options)
         end
       end
@@ -151,7 +141,6 @@ module ActiveMerchant #:nodoc:
       def update(vault_id, creditcard, options = {})
       braintree_credit_card = nil
       commit do
-          puts "!!!!!!"
           braintree_credit_card = @braintree_gateway.customer.find(vault_id).credit_cards.detect(&:default?)
           return Response.new(false, 'Braintree::NotFoundError') if braintree_credit_card.nil?
 
@@ -217,7 +206,6 @@ module ActiveMerchant #:nodoc:
 
       def check_customer_exists(customer_vault_id)
         commit do
-          puts "Custie"
           begin
             @braintree_gateway.customer.find(customer_vault_id)
             ActiveMerchant::Billing::Response.new(true, 'Customer found', {exists: true}, authorization: customer_vault_id)
@@ -229,10 +217,6 @@ module ActiveMerchant #:nodoc:
 
       def add_customer_with_credit_card(creditcard, options)
         commit do
-          puts "_------.-.-.-.-"
-          puts "--------------------------------------"
-          puts options[:payment_method_nonce]
-          puts "--------------------------------------"
           if options[:payment_method_nonce]
             credit_card_params = { payment_method_nonce: options[:payment_method_nonce] }
           else
@@ -270,7 +254,6 @@ module ActiveMerchant #:nodoc:
 
       def add_credit_card_to_customer(credit_card, options)
         commit do
-            puts "add_credit_card_to_customer"
           if options[:payment_method_nonce]
             credit_card_params = { payment_method_nonce: options[:payment_method_nonce] }
           else
@@ -290,8 +273,6 @@ module ActiveMerchant #:nodoc:
             customer_id: options[:customer],
             device_data: options[:device_data],
           }.merge! credit_card_params
-
-          puts parameters
 
           if options[:billing_address]
             address = map_address(options[:billing_address])
@@ -330,23 +311,6 @@ module ActiveMerchant #:nodoc:
       end
 
       def merge_credit_card_options(parameters, options)
-        # valid_options = {}
-        # options.each do |key, value|
-        #   valid_options[key] = value if [:update_existing_token, :verify_card, :verification_merchant_account_id, :payment_method_nonce].include?(key)
-        # end
-
-        # if valid_options.include?(:verify_card) && @merchant_account_id
-        #   valid_options[:verification_merchant_account_id] ||= @merchant_account_id
-        # end
-
-        puts parameters, options
-
-        # parameters[:credit_card] ||= {}
-        # parameters[:credit_card][:options] = valid_options
-        # if options[:billing_address]
-        #   address = map_address(options[:billing_address])
-        #   parameters[:credit_card][:billing_address] = address unless address.all? { |_k, v| empty?(v) }
-        # end
         parameters.merge(payment_method_nonce: options[:payment_method_nonce])
       end
 
@@ -372,7 +336,6 @@ module ActiveMerchant #:nodoc:
       end
 
       def commit(&block)
-        puts "CALL"
         yield
       rescue Braintree::BraintreeError => ex
         Response.new(false, ex.class.to_s)
@@ -405,6 +368,7 @@ module ActiveMerchant #:nodoc:
       def response_params(result)
         params = {}
         params[:customer_vault_id] = result.transaction.customer_details.id if result.success?
+        params[:credit_card_token] = result.transaction.credit_card_details.token if result.success?
         params[:braintree_transaction] = transaction_hash(result)
         params
       end
@@ -612,13 +576,14 @@ module ActiveMerchant #:nodoc:
           :amount => localized_amount(money, options[:currency] || default_currency).to_s,
           :order_id => options[:order_id],
           :customer => {
-            :id => options[:store] == true ? '' : options[:store],
+            :first_name => options[:first_name],
+            :last_name => options[:last_name],
             :email => scrub_email(options[:email]),
             :phone => options[:phone] || (options[:billing_address][:phone] if options[:billing_address] &&
               options[:billing_address][:phone])
           },
           :options => {
-            :store_in_vault => options[:store] ? true : false,
+            :store_in_vault => options[:store],
             :submit_for_settlement => options[:submit_for_settlement],
             :hold_in_escrow => options[:hold_in_escrow],
           }
@@ -678,6 +643,10 @@ module ActiveMerchant #:nodoc:
 
         parameters[:line_items] = options[:line_items] if options[:line_items]
 
+        if options[:payment_method_nonce].is_a?(String)
+          parameters[:payment_method_nonce] = options[:payment_method_nonce]
+        end
+
         parameters
       end
 
@@ -733,7 +702,7 @@ module ActiveMerchant #:nodoc:
           else
             parameters[:customer_id] = credit_card_or_vault_id
           end
-        else
+        elsif credit_card_or_vault_id.present?
           parameters[:customer].merge!(
             :first_name => credit_card_or_vault_id.first_name,
             :last_name => credit_card_or_vault_id.last_name
