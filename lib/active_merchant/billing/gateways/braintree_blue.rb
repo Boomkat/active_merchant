@@ -647,6 +647,10 @@ module ActiveMerchant #:nodoc:
           parameters[:payment_method_nonce] = options[:payment_method_nonce]
         end
 
+        if options[:payment_method_token].is_a?(String)
+          parameters[:payment_method_token] = options[:payment_method_token]
+        end
+
         parameters
       end
 
