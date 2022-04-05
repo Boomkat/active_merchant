@@ -202,6 +202,13 @@ module ActiveMerchant #:nodoc:
         @braintree_gateway.client_token.generate
       end
 
+      def generate_nonce(token)
+        result = @braintree_gateway.payment_method_nonce.create(token)
+        result.payment_method_nonce.nonce
+      rescue Braintree::NotFoundError
+        nil # Return nothing
+      end
+
       private
 
       def check_customer_exists(customer_vault_id)
@@ -643,12 +650,13 @@ module ActiveMerchant #:nodoc:
 
         parameters[:line_items] = options[:line_items] if options[:line_items]
 
-        if options[:payment_method_nonce].is_a?(String)
-          parameters[:payment_method_nonce] = options[:payment_method_nonce]
-        end
-
         if options[:payment_method_token].is_a?(String)
           parameters[:payment_method_token] = options[:payment_method_token]
+        end
+
+        if options[:payment_method_nonce].is_a?(String)
+          parameters[:payment_method_nonce] = options[:payment_method_nonce]
+          parameters.delete(:payment_method_token)
         end
 
         parameters
