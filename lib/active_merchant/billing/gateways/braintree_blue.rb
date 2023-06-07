@@ -198,7 +198,19 @@ module ActiveMerchant #:nodoc:
         true
       end
 
-      def generate_client_token
+      def generate_client_token(customer_id = nil, opts = {})
+        if customer_id.present?
+          opts[:customer_id] = customer_id
+          opts[:options] = {
+            verify_card: true,
+            make_default: true
+          }
+        end
+
+        @braintree_gateway.client_token.generate(opts)
+      rescue StandardError => e
+        # Default to the regular ID creation
+        # NOTE: This likely failed becasue the stored customer id could not be found
         @braintree_gateway.client_token.generate
       end
 
