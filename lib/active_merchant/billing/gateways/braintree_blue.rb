@@ -202,7 +202,8 @@ module ActiveMerchant #:nodoc:
         if customer_id.present?
           opts[:customer_id] = customer_id
           opts[:options] = {
-            verify_card: true,
+            # This prevents the vauling of cards without 3DS payload.
+            verify_card: false,
             make_default: true
           }
         end
@@ -608,6 +609,10 @@ module ActiveMerchant #:nodoc:
           }
         }
 
+        if options[:three_d_secure].present?
+          parameters[:options][:three_d_secure] = options[:three_d_secure]
+        end
+
         if options[:skip_advanced_fraud_checking]
           parameters[:options][:skip_advanced_fraud_checking] = options[:skip_advanced_fraud_checking]
         end
@@ -650,7 +655,8 @@ module ActiveMerchant #:nodoc:
           }
         end
 
-        add_3ds_info(parameters, options[:three_d_secure])
+        # NOTE: We don't need this
+        # add_3ds_info(parameters, options[:three_d_secure])
 
         parameters[:tax_amount] = options[:tax_amount] if options[:tax_amount]
         parameters[:tax_exempt] = options[:tax_exempt] if options[:tax_exempt]
